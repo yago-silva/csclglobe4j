@@ -1,14 +1,14 @@
-package com.suse.challange2.docker.registry.dto;
+package com.suse.challange2.docker.registry.service.dto;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class DockerRegistryServiceResponse {
+public class ListRepositoriesResponse {
 
     private List<String> repositories;
 
-    public DockerRegistryServiceResponse(List<String> repositories) {
+    public ListRepositoriesResponse(List<String> repositories) {
         this.repositories = new ArrayList<>(repositories);
     }
 
