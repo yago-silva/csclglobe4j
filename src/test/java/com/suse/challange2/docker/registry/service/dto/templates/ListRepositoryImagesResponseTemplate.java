@@ -27,4 +27,11 @@ public class ListRepositoryImagesResponseTemplate implements TemplateLoader {
             add("tags", new ArrayList<>());
         }});
     }
+
+    public static ListRepositoryImagesResponse newTemplateByRepositoryName(String repositoryName){
+        return Fixture.from(ListRepositoryImagesResponse.class)
+                .gimme(ListRepositoryImagesResponseTemplate.WITH_MANY_TAGS, new Rule() {{
+                    add("name", repositoryName);
+                }});
+    }
 }

@@ -17,7 +17,9 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -93,17 +95,18 @@ public class DockerRegistryClientTest {
 
     @Test
     public void shouldListImagesByRepositoryName() throws Exception {
-        ListRepositoryImagesResponse expectedResponse = Fixture.from(ListRepositoryImagesResponse.class)
+        ListRepositoryImagesResponse resposeBody = Fixture.from(ListRepositoryImagesResponse.class)
                 .gimme(ListRepositoryImagesResponseTemplate.WITH_MANY_TAGS);
 
-        String repositoryName = expectedResponse.getName();
+        String repositoryName = resposeBody.getName();
 
 
-        when(dockerRegistryService.listImagesByRepository(repositoryName)).thenReturn(expectedResponse);
-        List<String> givenImages = dockerRegistryClient.listImagesByRepository(repositoryName);
+        when(dockerRegistryService.listImagesByRepository(repositoryName)).thenReturn(resposeBody);
+        List<DockerImage> givenImages = dockerRegistryClient.listImagesByRepository(repositoryName);
 
-        assertThat(givenImages, hasSize(expectedResponse.getTags().size()));
-        assertTrue(givenImages.containsAll(expectedResponse.getTags()));
+        assertThat(givenImages, hasSize(resposeBody.getTags().size()));
+        List<String> givenImagesNames = givenImages.stream().map(img -> img.getTag()).collect(Collectors.toList());
+        assertTrue(givenImagesNames.containsAll(resposeBody.getTags()));
     }
 
     @Test
@@ -114,7 +117,7 @@ public class DockerRegistryClientTest {
         String repositoryName = expectedResponse.getName();
 
         when(dockerRegistryService.listImagesByRepository(repositoryName)).thenReturn(expectedResponse);
-        List<String> givenImages = dockerRegistryClient.listImagesByRepository(repositoryName);
+        List<DockerImage> givenImages = dockerRegistryClient.listImagesByRepository(repositoryName);
 
         assertThat(givenImages, hasSize(0));
     }
@@ -134,5 +137,39 @@ public class DockerRegistryClientTest {
         //Runtime exception was thrown when we get an error status code
         when(dockerRegistryService.listImagesByRepository(repositoryName)).thenThrow(new RuntimeException());
         dockerRegistryClient.listImagesByRepository(repositoryName);
+    }
+
+    @Test
+    public void shouldGetAllAvailableImages() throws Exception {
+        ListRepositoriesResponse listReposResponseBody = Fixture.from(ListRepositoriesResponse.class)
+                .gimme(ListRepositoriesResponseTemplate.WITH_MANY_REPOSITORIES);
+
+        List<String> repositories = listReposResponseBody.getRepositories();
+
+        Map<String, List<ListRepositoryImagesResponse>> imagesByRepositoryResponseBody = repositories.stream()
+                .map(ListRepositoryImagesResponseTemplate::newTemplateByRepositoryName)
+                .collect(Collectors.groupingBy(ListRepositoryImagesResponse::getName));
+
+        when(dockerRegistryService.listRepositories()).thenReturn(listReposResponseBody);
+
+        repositories.forEach(repositoryName -> {
+            try {
+                when(dockerRegistryService.listImagesByRepository(repositoryName))
+                        .thenReturn(imagesByRepositoryResponseBody.get(repositoryName).get(0));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        List<DockerImage> givenImages = dockerRegistryClient.listAllAvailableImages();
+        assertThat(givenImages, hasSize(9));
+
+        listReposResponseBody.getRepositories().forEach(repository -> {
+            List<DockerImage> expectedImagesForRepository = imagesByRepositoryResponseBody.get(repository).stream()
+                    .map(respBody -> respBody.getTags()).flatMap(List::stream)
+                    .map(tag -> new DockerImage(repository, tag)).collect(Collectors.toList());
+
+            assertTrue(givenImages.containsAll(expectedImagesForRepository));
+        });
     }
 }

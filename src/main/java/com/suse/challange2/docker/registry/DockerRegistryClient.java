@@ -8,6 +8,7 @@ import com.suse.challange2.docker.registry.service.DockerRegistryService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DockerRegistryClient {
 
@@ -26,12 +27,21 @@ public class DockerRegistryClient {
         }
     }
 
-    public List<String> listImagesByRepository(String repositoryName) {
+    public List<DockerImage> listImagesByRepository(String repositoryName) {
         try {
             ListRepositoryImagesResponse responseBody = dockerRegistryService.listImagesByRepository(repositoryName);
-            return Collections.unmodifiableList(responseBody.getTags());
+            List<DockerImage> dockerImages =
+                    responseBody.getTags().stream().map(tag -> new DockerImage(repositoryName, tag)).collect(Collectors.toList());
+            return Collections.unmodifiableList(dockerImages);
         } catch (RuntimeException | IOException e) {
             throw new HttpOperationFailedException(e.getMessage(), e);
         }
+    }
+
+    public List<DockerImage> listAllAvailableImages(){
+        return listRepositories().stream()
+                            .map(repository -> listImagesByRepository(repository))
+                            .flatMap(List::stream)
+                            .collect(Collectors.toList());
     }
 }
