@@ -10,6 +10,8 @@ public class ListRepositoryImagesResponse {
 
     private List<String> tags;
 
+    ListRepositoryImagesResponse(){}
+
     public ListRepositoryImagesResponse(String name, List<String> tags) {
         this.name = name;
         this.tags = new ArrayList<>(tags);

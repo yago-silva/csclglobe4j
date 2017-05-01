@@ -8,6 +8,8 @@ public class ListRepositoriesResponse {
 
     private List<String> repositories;
 
+    ListRepositoriesResponse(){}
+
     public ListRepositoriesResponse(List<String> repositories) {
         this.repositories = new ArrayList<>(repositories);
     }
