@@ -1,10 +1,9 @@
-package com.suse.challange2.docker.registry.service.dto.templates;
+package com.suse.challange2.docker.registry.client.dto.templates;
 
 import br.com.six2six.fixturefactory.Fixture;
 import br.com.six2six.fixturefactory.Rule;
 import br.com.six2six.fixturefactory.loader.TemplateLoader;
-import com.suse.challange2.docker.registry.service.dto.ListRepositoriesResponse;
-import com.suse.challange2.docker.registry.service.dto.ListRepositoryImagesResponse;
+import com.suse.challange2.docker.registry.client.dto.ListRepositoryImagesResponse;
 
 import java.util.ArrayList;
 import java.util.Arrays;

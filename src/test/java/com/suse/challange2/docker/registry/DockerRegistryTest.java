@@ -2,20 +2,24 @@ package com.suse.challange2.docker.registry;
 
 import br.com.six2six.fixturefactory.Fixture;
 import br.com.six2six.fixturefactory.loader.FixtureFactoryLoader;
-import com.suse.challange2.docker.registry.service.dto.ListRepositoriesResponse;
-import com.suse.challange2.docker.registry.service.dto.ListRepositoryImagesResponse;
-import com.suse.challange2.docker.registry.service.dto.templates.ListRepositoriesResponseTemplate;
+import com.suse.challange2.docker.registry.exceptions.NetworkException;
+import com.suse.challange2.docker.registry.client.dto.ListRepositoriesResponse;
+import com.suse.challange2.docker.registry.client.dto.ListRepositoryImagesResponse;
+import com.suse.challange2.docker.registry.client.dto.templates.ListRepositoriesResponseTemplate;
 import com.suse.challange2.docker.registry.exceptions.HttpOperationFailedException;
-import com.suse.challange2.docker.registry.service.DockerRegistryService;
-import com.suse.challange2.docker.registry.service.dto.templates.ListRepositoryImagesResponseTemplate;
+import com.suse.challange2.docker.registry.client.DockerRegistryClient;
+import com.suse.challange2.docker.registry.client.dto.templates.ListRepositoryImagesResponseTemplate;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import retrofit.RetrofitError;
+import retrofit.client.Response;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,73 +28,84 @@ import java.util.stream.Collectors;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
-public class DockerRegistryClientTest {
+public class DockerRegistryTest {
 
     @Mock
-    private DockerRegistryService dockerRegistryService;
-
     private DockerRegistryClient dockerRegistryClient;
+
+    private DockerRegistry dockerRegistry;
 
     @BeforeClass
     public static void initializeTemplate(){
-        FixtureFactoryLoader.loadTemplates("com.suse.challange2.docker.registry.service.dto.templates");
+        FixtureFactoryLoader.loadTemplates("com.suse.challange2.docker.registry.client.dto.templates");
     }
 
     @Before
     public void setup(){
-        this.dockerRegistryClient = new DockerRegistryClient(dockerRegistryService);
+        this.dockerRegistry = new DockerRegistry(dockerRegistryClient);
     }
 
     @Test
     public void shouldListRepositories() throws IOException {
-        ListRepositoriesResponse serviceResponse = Fixture.from(ListRepositoriesResponse.class)
-                        .gimme(ListRepositoriesResponseTemplate.WITH_MANY_REPOSITORIES);
+        ListRepositoriesResponse clientResponse = Fixture.from(ListRepositoriesResponse.class)
+                .gimme(ListRepositoriesResponseTemplate.WITH_MANY_REPOSITORIES);
 
-        when(dockerRegistryService.listRepositories()).thenReturn(serviceResponse);
+        when(dockerRegistryClient.listRepositories()).thenReturn(clientResponse);
 
-        List<String> givenRepositories = dockerRegistryClient.listRepositories();
+        List<String> givenRepositories = dockerRegistry.listRepositories();
 
-        assertThat(givenRepositories, hasSize(serviceResponse.getRepositories().size()));
-        assertTrue(givenRepositories.containsAll(serviceResponse.getRepositories()));
+        assertThat(givenRepositories, hasSize(clientResponse.getRepositories().size()));
+        assertTrue(givenRepositories.containsAll(clientResponse.getRepositories()));
     }
 
     @Test(expected = UnsupportedOperationException.class)
     public void repositoryListShouldBeImmutable() throws IOException{
-        ListRepositoriesResponse serviceResponse = Fixture.from(ListRepositoriesResponse.class)
+        ListRepositoriesResponse clientResponse = Fixture.from(ListRepositoriesResponse.class)
                 .gimme(ListRepositoriesResponseTemplate.WITH_MANY_REPOSITORIES);
 
-        when(dockerRegistryService.listRepositories()).thenReturn(serviceResponse);
+        when(dockerRegistryClient.listRepositories()).thenReturn(clientResponse);
 
-        List<String> repositories = dockerRegistryClient.listRepositories();
+        List<String> repositories = dockerRegistry.listRepositories();
 
         repositories.add("my/newRepository");
     }
 
     @Test
     public void shouldReturnAnEmptyListWhenThereIsNoImagesOnRegistry() throws IOException{
-        ListRepositoriesResponse serviceResponse = Fixture.from(ListRepositoriesResponse.class)
+        ListRepositoriesResponse clientResponse = Fixture.from(ListRepositoriesResponse.class)
                 .gimme(ListRepositoriesResponseTemplate.WITH_ZERO_REPOSITORIES);
 
-        when(dockerRegistryService.listRepositories()).thenReturn(serviceResponse);
+        when(dockerRegistryClient.listRepositories()).thenReturn(clientResponse);
 
-        List<String> repositories = dockerRegistryClient.listRepositories();
+        List<String> repositories = dockerRegistry.listRepositories();
         assertThat(repositories, hasSize(0));
     }
 
-    @Test(expected = HttpOperationFailedException.class)
+    @Test(expected = NetworkException.class)
     public void shouldThrowExceptionWhenANetworkProblemOccurListingRepositories()  throws IOException {
-        when(dockerRegistryService.listRepositories()).thenThrow(new RuntimeException());
-        dockerRegistryClient.listRepositories();
+        when(dockerRegistryClient.listRepositories()).thenThrow(new IOException());
+        dockerRegistry.listRepositories();
     }
 
-    @Test(expected = HttpOperationFailedException.class)
-    public void shouldThrowExceptionWhenServiceReturnAnErrorStatusCodeListingRepository() throws Exception {
-        //Runtime exception was thrown when we get an error status code
-        when(dockerRegistryService.listRepositories()).thenThrow(new RuntimeException());
-        dockerRegistryClient.listRepositories();
+    @Test
+    public void shouldRespectErrorStatusCodeGivenFromClientWhenListingRepository() throws Exception {
+        final int internalServerError = 500;
+        Response response = new Response("", internalServerError, "", new ArrayList<>(), null);
+        RetrofitError cause = RetrofitError.httpError("", response, null, null);
+
+        when(dockerRegistryClient.listRepositories())
+                .thenThrow(new HttpOperationFailedException(internalServerError, "Internal Server Error", cause));
+
+        try {
+            dockerRegistry.listRepositories();
+            fail();
+        }catch(HttpOperationFailedException ex){
+            assertThat(ex.getStatusCode(), equalTo(internalServerError));
+        }
     }
 
     @Test
@@ -101,8 +116,8 @@ public class DockerRegistryClientTest {
         String repositoryName = resposeBody.getName();
 
 
-        when(dockerRegistryService.listImagesByRepository(repositoryName)).thenReturn(resposeBody);
-        List<DockerImage> givenImages = dockerRegistryClient.listImagesByRepository(repositoryName);
+        when(dockerRegistryClient.listImagesByRepository(repositoryName)).thenReturn(resposeBody);
+        List<DockerImage> givenImages = dockerRegistry.listImagesByRepository(repositoryName);
 
         assertThat(givenImages, hasSize(resposeBody.getTags().size()));
         List<String> givenImagesNames = givenImages.stream().map(img -> img.getTag()).collect(Collectors.toList());
@@ -116,27 +131,28 @@ public class DockerRegistryClientTest {
 
         String repositoryName = expectedResponse.getName();
 
-        when(dockerRegistryService.listImagesByRepository(repositoryName)).thenReturn(expectedResponse);
-        List<DockerImage> givenImages = dockerRegistryClient.listImagesByRepository(repositoryName);
+        when(dockerRegistryClient.listImagesByRepository(repositoryName)).thenReturn(expectedResponse);
+        List<DockerImage> givenImages = dockerRegistry.listImagesByRepository(repositoryName);
 
         assertThat(givenImages, hasSize(0));
     }
 
-    @Test(expected = HttpOperationFailedException.class)
+    @Test(expected = NetworkException.class)
     public void shouldThrowExceptionWhenANetworkProblemOccurListingImagesByRepository() throws Exception {
         String repositoryName = UUID.randomUUID().toString();
 
-        when(dockerRegistryService.listImagesByRepository(repositoryName)).thenThrow(new IOException());
-        dockerRegistryClient.listImagesByRepository(repositoryName);
+        when(dockerRegistryClient.listImagesByRepository(repositoryName)).thenThrow(new IOException());
+        dockerRegistry.listImagesByRepository(repositoryName);
     }
 
     @Test(expected = HttpOperationFailedException.class)
-    public void shouldThrowExceptionWhenServiceReturnAnErrorStatusCodeListingImagesByRepository() throws Exception {
+    public void shouldThrowExceptionWhenClientReturnAnErrorStatusCodeListingImagesByRepository() throws Exception {
         String repositoryName = UUID.randomUUID().toString();
 
-        //Runtime exception was thrown when we get an error status code
-        when(dockerRegistryService.listImagesByRepository(repositoryName)).thenThrow(new RuntimeException());
-        dockerRegistryClient.listImagesByRepository(repositoryName);
+        when(dockerRegistryClient.listImagesByRepository(repositoryName))
+                .thenThrow(new HttpOperationFailedException(404, "Internal Server Error", null));
+
+        dockerRegistry.listImagesByRepository(repositoryName);
     }
 
     @Test
@@ -150,18 +166,18 @@ public class DockerRegistryClientTest {
                 .map(ListRepositoryImagesResponseTemplate::newTemplateByRepositoryName)
                 .collect(Collectors.groupingBy(ListRepositoryImagesResponse::getName));
 
-        when(dockerRegistryService.listRepositories()).thenReturn(listReposResponseBody);
+        when(dockerRegistryClient.listRepositories()).thenReturn(listReposResponseBody);
 
         repositories.forEach(repositoryName -> {
             try {
-                when(dockerRegistryService.listImagesByRepository(repositoryName))
+                when(dockerRegistryClient.listImagesByRepository(repositoryName))
                         .thenReturn(imagesByRepositoryResponseBody.get(repositoryName).get(0));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         });
 
-        List<DockerImage> givenImages = dockerRegistryClient.listAllAvailableImages();
+        List<DockerImage> givenImages = dockerRegistry.listAllAvailableImages();
         assertThat(givenImages, hasSize(9));
 
         listReposResponseBody.getRepositories().forEach(repository -> {

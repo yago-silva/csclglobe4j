@@ -11,10 +11,6 @@ public class DockerImage {
         this.tag = tag;
     }
 
-    public String getRepositoryName() {
-        return repositoryName;
-    }
-
     public String getTag() {
         return tag;
     }

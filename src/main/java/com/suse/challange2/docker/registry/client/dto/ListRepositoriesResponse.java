@@ -1,4 +1,4 @@
-package com.suse.challange2.docker.registry.service.dto;
+package com.suse.challange2.docker.registry.client.dto;
 
 import java.util.ArrayList;
 import java.util.Collections;
