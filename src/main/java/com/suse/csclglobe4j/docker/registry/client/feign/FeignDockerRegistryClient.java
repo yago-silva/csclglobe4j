@@ -6,10 +6,14 @@ import com.suse.csclglobe4j.docker.registry.client.dto.ListRepositoryImagesRespo
 import com.suse.csclglobe4j.docker.registry.exceptions.HttpOperationFailedException;
 import feign.FeignException;
 import feign.RetryableException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
 public class FeignDockerRegistryClient implements DockerRegistryClient {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(FeignDockerRegistryClient.class);
 
     private FeignDockerRegistryStub feignDockerRegistryStub;
 
@@ -20,6 +24,7 @@ public class FeignDockerRegistryClient implements DockerRegistryClient {
     @Override
     public ListRepositoriesResponse listRepositories() throws IOException, HttpOperationFailedException {
         try{
+            LOGGER.debug("Trying listing all repositories using FeignDockerRegistryClient");
             return feignDockerRegistryStub.listRepositories();
         } catch (RetryableException ex){
             throw new IOException(ex.getMessage(), ex);
@@ -31,6 +36,7 @@ public class FeignDockerRegistryClient implements DockerRegistryClient {
     @Override
     public ListRepositoryImagesResponse listImagesByRepository(String repositoryName) throws IOException, HttpOperationFailedException {
         try {
+            LOGGER.debug("Trying listing images of repository '%s' using FeignDockerRegistryClient", repositoryName);
             return feignDockerRegistryStub.listImagesByRepository(repositoryName);
         } catch (RetryableException ex){
             throw new IOException(ex.getMessage(), ex);

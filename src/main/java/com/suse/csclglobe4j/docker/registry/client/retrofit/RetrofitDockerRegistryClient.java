@@ -4,12 +4,16 @@ import com.suse.csclglobe4j.docker.registry.client.DockerRegistryClient;
 import com.suse.csclglobe4j.docker.registry.client.dto.ListRepositoriesResponse;
 import com.suse.csclglobe4j.docker.registry.client.dto.ListRepositoryImagesResponse;
 import com.suse.csclglobe4j.docker.registry.exceptions.HttpOperationFailedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import retrofit.RetrofitError;
 import retrofit.client.Response;
 
 import java.io.IOException;
 
 public class RetrofitDockerRegistryClient implements DockerRegistryClient {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RetrofitDockerRegistryClient.class);
 
     private RetrofitDockerRegistryStub retrofitDockerRegistryStub;
 
@@ -20,6 +24,7 @@ public class RetrofitDockerRegistryClient implements DockerRegistryClient {
     @Override
     public ListRepositoriesResponse listRepositories() throws IOException, HttpOperationFailedException {
         try {
+            LOGGER.debug("Trying listing all repositories using RetrofitDockerRegistryClient");
             return retrofitDockerRegistryStub.listRepositories();
         }catch (RetrofitError error){
             switch (error.getKind()){
@@ -40,6 +45,7 @@ public class RetrofitDockerRegistryClient implements DockerRegistryClient {
     public ListRepositoryImagesResponse listImagesByRepository(String repositoryName)
             throws IOException, HttpOperationFailedException {
         try {
+            LOGGER.debug("Trying listing images of repository '%s' using RetrofitDockerRegistryClient", repositoryName);
             return retrofitDockerRegistryStub.listImagesByRepository(repositoryName);
         }catch (RetrofitError error){
             switch (error.getKind()){
